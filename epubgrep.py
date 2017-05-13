@@ -4,6 +4,7 @@ import os
 import re
 import stat
 import zipfile
+import random
 from io import BytesIO
 
 
@@ -21,6 +22,7 @@ class EpubGrep(object):
         self.max_size = 10*1024*1024
         self.status = 'not started'
         self.preview = False
+        self.randomize = False
 
     def setMinMatches(self, min):
         self.min_matches = min
@@ -35,6 +37,9 @@ class EpubGrep(object):
 
     def setPreview(self, prev):
         self.preview = prev
+
+    def setRandomize(self, rand):
+        self.randomize = rand
 
     def _searchfile(self, path, content):
         n = 0
@@ -59,7 +64,10 @@ class EpubGrep(object):
             st = os.stat(path)
             mode = st.st_mode
             if stat.S_ISDIR(mode):
-                for sp in os.listdir(path):
+                ls = os.listdir(path)
+                if self.randomize:
+                    random.shuffle(ls)
+                for sp in ls:
                     self._searchdir(os.path.join(path, sp))
             elif stat.S_ISREG(mode):
                 if st.st_size > self.max_size:
@@ -117,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-Insensitive matching')
     parser.add_argument('-n', '--min-matches', action='store', type=int, default=1, help='Minimum number of matches per file')
     parser.add_argument('-p', '--preview', action='store_true', help='Preview matches')
+    parser.add_argument('-r', '--randomize', action='store_true', help='randomize search order')
     parser.add_argument('--size-max', type=filesize, default='10M',
                         help='Maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
     parser.add_argument('-v', '--verbose', action='store_true', help='Show arguments before beginning to search')
@@ -138,6 +147,7 @@ if __name__ == "__main__":
     grep.setIgnoreCase(args.ignore_case)
     grep.setMaxSize(args.size_max)
     grep.setPreview(args.preview)
+    grep.setRandomize(args.randomize)
 
     started = time()
 
