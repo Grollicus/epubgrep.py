@@ -23,6 +23,7 @@ class EpubGrep(object):
         self.status = 'not started'
         self.preview = False
         self.randomize = False
+        self.colorize = False
 
     def setMinMatches(self, min):
         self.min_matches = min
@@ -41,6 +42,9 @@ class EpubGrep(object):
     def setRandomize(self, rand):
         self.randomize = rand
 
+    def setColorize(self, color):
+        self.colorize = color
+
     def _searchfile(self, path, content):
         n = 0
         matches = []
@@ -52,7 +56,10 @@ class EpubGrep(object):
             print("%s: %d" % (path.decode('utf-8', 'backslashreplace'), n))
             if self.preview:
                 for m in matches:
-                    print("\t%s" % m.decode('utf-8', 'backslashreplace'))
+                    if self.colorize:
+                        print("\033[1;36m\t%s\033[0;0m" % m.decode('utf-8', 'backslashreplace'))
+                    else:
+                        print("\t%s" % m.decode('utf-8', 'backslashreplace'))
 
     def _searchdir(self, path):
         try:
@@ -87,10 +94,16 @@ class EpubGrep(object):
                             content.append(z.read(member.filename))
                     self._searchfile(path, content)
                 except Exception as e:
-                    print("Failed to open %s: %s" % (path, e))
+                    if self.colorize:
+                        print("Failed to open %s: %s" % (path, e))
+                    else:
+                        print("\033[1;31mFailed to open %s: %s\033[0;0m" % (path, e))
                     self._searchfile(path, [c])
         except Exception as e:
-            print("Failed to read %s: %s" % (path, e))
+            if self.colorize:
+                print("\033[1;31mFailed to read %s: %s\033[0;0m" % (path, e))
+            else:
+                print("Failed to read %s: %s" % (path, e))
 
     def searchin(self, path):
         if type(path) is str:
@@ -124,6 +137,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description='Grep for regex in epub files')
     parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-Insensitive matching')
     parser.add_argument('-n', '--min-matches', action='store', type=int, default=1, help='Minimum number of matches per file')
+    parser.add_argument('--nocolor', action='store_false', dest='color', help='don\'t colorize output')
     parser.add_argument('-p', '--preview', action='store_true', help='Preview matches')
     parser.add_argument('-r', '--randomize', action='store_true', help='randomize search order')
     parser.add_argument('--seed', action='store', type=int, default=random.randint(0, 2**32), help='seed for -r')
@@ -146,6 +160,8 @@ if __name__ == "__main__":
             print("Showing previews")
         if args.randomize:
             print("Randomizing directory traversal order, using seed %d" % (args.seed,))
+        if args.color:
+            print("Colorizing output")
 
     random.seed(args.seed)
 
@@ -155,6 +171,7 @@ if __name__ == "__main__":
     grep.setMaxSize(args.size_max)
     grep.setPreview(args.preview)
     grep.setRandomize(args.randomize)
+    grep.setColorize(args.color)
 
     started = time()
 
@@ -162,7 +179,10 @@ if __name__ == "__main__":
         time_spent = time()-started
         n = len(grep.already_visited)
         nps = n/time_spent
-        print("Current Status: %d files visited (%.2f / s), currently at %s" % (n, nps, repr(grep.status)))
+        if args.color:
+            print("\033[0;32mCurrent Status: %d files visited (%.2f / s), currently at %s\033[0;0m" % (n, nps, repr(grep.status)))
+        else:
+            print("Current Status: %d files visited (%.2f / s), currently at %s" % (n, nps, repr(grep.status)))
     signal(SIGQUIT, printstatus)
 
     for path in args.file:
