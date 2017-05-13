@@ -185,5 +185,12 @@ if __name__ == "__main__":
             print("Current Status: %d files visited (%.2f / s), currently at %s" % (n, nps, repr(grep.status)))
     signal(SIGQUIT, printstatus)
 
-    for path in args.file:
-        grep.searchin(path)
+    try:
+        for path in args.file:
+            grep.searchin(path)
+    except KeyboardInterrupt:
+        printstatus(0, 0)
+        if args.color:
+            print("\033[0;32mInterrupted\033[0;0m")
+        else:
+            print("Interrupted")
