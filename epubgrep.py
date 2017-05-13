@@ -5,8 +5,6 @@ import re
 import stat
 import zipfile
 from io import BytesIO
-from signal import signal, SIGQUIT
-from argparse import ArgumentParser, ArgumentError
 
 
 class EpubGrep(object):
@@ -94,6 +92,10 @@ def filesize(size_str):
 
 if __name__ == "__main__":
 
+    from signal import signal, SIGQUIT
+    from argparse import ArgumentParser, ArgumentError
+    from time import time
+
     parser = ArgumentParser(description='Grep for regex in epub files')
     parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-Insensitive matching')
     parser.add_argument('-n', '--min-matches', action='store', type=int, default=1, help='Minimum number of matches per file')
@@ -117,8 +119,13 @@ if __name__ == "__main__":
     grep.setIgnoreCase(args.ignore_case)
     grep.setMaxSize(args.size_max)
 
+    started = time()
+
     def printstatus(signum, frame):
-        print("Current Status: %s" % repr(grep.status))
+        time_spent = time()-started
+        n = len(grep.already_visited)
+        nps = n/time_spent
+        print("Current Status: %d files visited (%f / s), currently at %s" % (n, nps, repr(grep.status)))
     signal(SIGQUIT, printstatus)
 
     for path in args.file:
