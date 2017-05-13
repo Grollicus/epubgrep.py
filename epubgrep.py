@@ -126,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--min-matches', action='store', type=int, default=1, help='Minimum number of matches per file')
     parser.add_argument('-p', '--preview', action='store_true', help='Preview matches')
     parser.add_argument('-r', '--randomize', action='store_true', help='randomize search order')
+    parser.add_argument('--seed', action='store', type=int, default=random.randint(0, 2**32), help='seed for -r')
     parser.add_argument('--size-max', type=filesize, default='10M',
                         help='Maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
     parser.add_argument('-v', '--verbose', action='store_true', help='Show arguments before beginning to search')
@@ -141,6 +142,12 @@ if __name__ == "__main__":
         print("Maximum size:", args.size_max)
         print("Min matches:", args.min_matches)
         print("%signoring case" % ("not " if not args.ignore_case else ""))
+        if args.preview:
+            print("Showing previews")
+        if args.randomize:
+            print("Randomizing directory traversal order, using seed %d" % (args.seed,))
+
+    random.seed(args.seed)
 
     grep = EpubGrep(args.pattern)
     grep.setMinMatches(args.min_matches)
