@@ -50,36 +50,39 @@ class EpubGrep(object):
                     print("\t%s" % m.decode('utf-8', 'backslashreplace'))
 
     def _searchdir(self, path):
-        path = os.path.realpath(path)
-        if path in self.already_visited:
-            return
-        self.already_visited.add(path)
-        self.status = path
-        st = os.stat(path)
-        mode = st.st_mode
-        if stat.S_ISDIR(mode):
-            for sp in os.listdir(path):
-                self._searchdir(os.path.join(path, sp))
-        elif stat.S_ISREG(mode):
-            if st.st_size > self.max_size:
+        try:
+            path = os.path.realpath(path)
+            if path in self.already_visited:
                 return
-            with open(path, mode='rb') as f:
-                c = f.read()
-            if len(c) < 4 or not c.startswith(b'PK\x03\x04'):
-                self._searchfile(path, [c])
-                return
-            try:
-                b = BytesIO(c)
-                with zipfile.ZipFile(b, compression=zipfile.ZIP_DEFLATED, mode='r') as z:
-                    content = []
-                    for member in z.infolist():
-                        if member.file_size > self.max_size:
-                            continue
-                        content.append(z.read(member.filename))
-                self._searchfile(path, content)
-            except Exception as e:
-                print("Failed to open %s: %s" % (path, e))
-                self._searchfile(path, [c])
+            self.already_visited.add(path)
+            self.status = path
+            st = os.stat(path)
+            mode = st.st_mode
+            if stat.S_ISDIR(mode):
+                for sp in os.listdir(path):
+                    self._searchdir(os.path.join(path, sp))
+            elif stat.S_ISREG(mode):
+                if st.st_size > self.max_size:
+                    return
+                with open(path, mode='rb') as f:
+                    c = f.read()
+                if len(c) < 4 or not c.startswith(b'PK\x03\x04'):
+                    self._searchfile(path, [c])
+                    return
+                try:
+                    b = BytesIO(c)
+                    with zipfile.ZipFile(b, compression=zipfile.ZIP_DEFLATED, mode='r') as z:
+                        content = []
+                        for member in z.infolist():
+                            if member.file_size > self.max_size:
+                                continue
+                            content.append(z.read(member.filename))
+                    self._searchfile(path, content)
+                except Exception as e:
+                    print("Failed to open %s: %s" % (path, e))
+                    self._searchfile(path, [c])
+        except Exception as e:
+            print("Failed to read %s: %s" % (path, e))
 
     def searchin(self, path):
         if type(path) is str:
@@ -142,7 +145,7 @@ if __name__ == "__main__":
         time_spent = time()-started
         n = len(grep.already_visited)
         nps = n/time_spent
-        print("Current Status: %d files visited (%f / s), currently at %s" % (n, nps, repr(grep.status)))
+        print("Current Status: %d files visited (%.2f / s), currently at %s" % (n, nps, repr(grep.status)))
     signal(SIGQUIT, printstatus)
 
     for path in args.file:
