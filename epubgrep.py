@@ -20,6 +20,7 @@ class EpubGrep(object):
         self.ignore_case = False
         self.max_size = 10*1024*1024
         self.status = 'not started'
+        self.preview = False
 
     def setMinMatches(self, min):
         self.min_matches = min
@@ -32,7 +33,23 @@ class EpubGrep(object):
     def setMaxSize(self, size):
         self.max_size = size
 
-    def iterfiles(self, path):
+    def setPreview(self, prev):
+        self.preview = prev
+
+    def _searchfile(self, path, content):
+        n = 0
+        matches = []
+        for c in content:
+            m = self.pattern.findall(c)
+            n = n + len(m)
+            matches = matches + m
+        if n >= self.min_matches:
+            print("%s: %d" % (path.decode('utf-8', 'backslashreplace'), n))
+            if self.preview:
+                for m in matches:
+                    print("\t%s" % m.decode('utf-8', 'backslashreplace'))
+
+    def _searchdir(self, path):
         path = os.path.realpath(path)
         if path in self.already_visited:
             return
@@ -42,35 +59,32 @@ class EpubGrep(object):
         mode = st.st_mode
         if stat.S_ISDIR(mode):
             for sp in os.listdir(path):
-                for f in self.iterfiles(os.path.join(path, sp)):
-                    yield f
+                self._searchdir(os.path.join(path, sp))
         elif stat.S_ISREG(mode):
             if st.st_size > self.max_size:
                 return
             with open(path, mode='rb') as f:
                 c = f.read()
             if len(c) < 4 or not c.startswith(b'PK\x03\x04'):
-                yield (path, c)
+                self._searchfile(path, [c])
                 return
             try:
                 b = BytesIO(c)
                 with zipfile.ZipFile(b, compression=zipfile.ZIP_DEFLATED, mode='r') as z:
+                    content = []
                     for member in z.infolist():
                         if member.file_size > self.max_size:
                             continue
-                        yield (b'%s:%s' % (path, bytes(member.filename, 'utf-8')), z.read(member.filename))
-                return
+                        content.append(z.read(member.filename))
+                self._searchfile(path, content)
             except Exception as e:
                 print("Failed to open %s: %s" % (path, e))
-                yield (path, c)
+                self._searchfile(path, [c])
 
     def searchin(self, path):
         if type(path) is str:
             path = bytes(path, 'utf-8')
-        for (f, c) in self.iterfiles(path):
-            n = len(self.pattern.findall(c))
-            if n >= self.min_matches:
-                print("%s: %d" % (f, n))
+        self._searchdir(path)
         self.status = 'finished'
 
 
@@ -99,6 +113,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description='Grep for regex in epub files')
     parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-Insensitive matching')
     parser.add_argument('-n', '--min-matches', action='store', type=int, default=1, help='Minimum number of matches per file')
+    parser.add_argument('-p', '--preview', action='store_true', help='Preview matches')
     parser.add_argument('--size-max', type=filesize, default='10M',
                         help='Maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
     parser.add_argument('-v', '--verbose', action='store_true', help='Show arguments before beginning to search')
@@ -109,6 +124,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.verbose:
+        print("Searching in: ", args.file)
         print("Pattern:", args.pattern)
         print("Maximum size:", args.size_max)
         print("Min matches:", args.min_matches)
@@ -118,6 +134,7 @@ if __name__ == "__main__":
     grep.setMinMatches(args.min_matches)
     grep.setIgnoreCase(args.ignore_case)
     grep.setMaxSize(args.size_max)
+    grep.setPreview(args.preview)
 
     started = time()
 
