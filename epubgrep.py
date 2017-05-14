@@ -256,8 +256,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.verbose:
-        print("Searching in: ", args.file)
-        print("Pattern:", args.pattern)
+        print("Searching in: ", args.FILE)
+        print("Pattern:", args.PATTERN)
         print("Maximum size:", args.size_max)
         print("Min matches:", args.min_matches)
         print("%signoring case" % ("not " if not args.ignore_case else ""))
