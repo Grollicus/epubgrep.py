@@ -22,6 +22,7 @@ class EpubGrep(object):
             pattern = re.compile(pattern)
         self.pattern = pattern
         self.min_matches = 1
+        self.max_previews = 20
         self.ignore_case = False
         self.max_size = 10*1024*1024
         self.status = 'not started'
@@ -39,6 +40,9 @@ class EpubGrep(object):
         self.ignore_case = ignore
         if type(self._pattern) is bytes:
             self.pattern = re.compile(self._pattern, re.I if ignore else 0)
+
+    def setMaxPreviews(self, max):
+        self.max_previews = max
 
     def setMaxSize(self, size):
         self.max_size = size
@@ -158,10 +162,15 @@ class EpubGrep(object):
             matches.append(m)
         if n >= self.min_matches:
             print("%s: %d" % (path.decode('utf-8', 'backslashreplace'), n))
+            previews = self.max_previews
             printed_something_already = False
             for m in matches:
+                m = m[0:previews]
+                previews = previews - len(m)
                 if self.print_previews(m, printed_something_already):
                     printed_something_already = True
+                if previews == 0:
+                    break
 
     def _searchdir(self, path):
         try:
@@ -219,11 +228,11 @@ def argument_filesize(size_str):
     return size
 
 
-def argument_min_matches(min_str):
-    min = int(min_str)
-    if min <= 0:
-        raise ArgumentError("min-matches must be greater than zero!")
-    return min
+def argument_gt_zero(n):
+    n = int(n)
+    if n <= 0:
+        raise ArgumentError("must be greater than zero!")
+    return n
 
 
 def argument_ge_zero(n):
@@ -244,7 +253,8 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--ignore-case', action='store_true', help='case-insensitive matching')
     parser.add_argument('--lag', action='store', type=argument_ge_zero, default=80, help='preview lag after matches for use with -p. Default 80')
     parser.add_argument('--lead', action='store', type=argument_ge_zero, default=80, help='preview lead before matches for use with -p. Default 80')
-    parser.add_argument('-n', '--min-matches', action='store', type=argument_min_matches, default=1, help='minimum number of matches per file')
+    parser.add_argument('-n', '--min-matches', action='store', type=argument_gt_zero, default=1, help='minimum number of matches per file')
+    parser.add_argument('-m', '--max-previews', action='store', type=argument_gt_zero, default=20, help='maximum number of previews to show per file')
     parser.add_argument('--nocolor', action='store_false', dest='color', help='don\'t colorize output')
     parser.add_argument('-p', '--preview', action='store_true', help='preview matches')
     parser.add_argument('-r', '--randomize', action='store_true', help='randomize search order')
@@ -265,7 +275,7 @@ if __name__ == "__main__":
         print("Min matches:", args.min_matches)
         print("%signoring case" % ("not " if not args.ignore_case else ""))
         if args.preview:
-            print("Showing previews with %d lead and %d lag" % (args.lead, args.lag))
+            print("Showing at most %d previews with %d lead and %d lag" % (args.max_previews, args.lead, args.lag))
         if args.randomize:
             print("Randomizing directory traversal order, using seed %d" % (args.seed,))
         if args.color:
@@ -278,6 +288,7 @@ if __name__ == "__main__":
     grep.setIgnoreCase(args.ignore_case)
     grep.setMaxSize(args.size_max)
     grep.setMinMatches(args.min_matches)
+    grep.setMaxPreviews(args.max_previews)
     grep.setPreview(args.preview)
     grep.setPreviewLag(args.lag)
     grep.setPreviewLead(args.lead)
