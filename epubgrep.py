@@ -15,7 +15,7 @@ class EpubGrep(object):
     def __init__(self, pattern):
         self.already_visited = set([])
         if type(pattern) is str:
-            pattern = bytes(pattern, 'utf-8')
+            pattern = pattern.encode('utf-8')
         self._pattern = pattern
         if type(pattern) is bytes:
             pattern = re.compile(pattern)
@@ -162,15 +162,15 @@ class EpubGrep(object):
 
     def _searchdir(self, path):
         try:
-            path = os.path.realpath(path)
-            if path in self.already_visited:
+            realpath = os.path.realpath(path)
+            if realpath in self.already_visited:
                 return
-            self.already_visited.add(path)
+            self.already_visited.add(realpath)
             self.status = path
-            st = os.stat(path)
+            st = os.stat(realpath)
             mode = st.st_mode
             if stat.S_ISDIR(mode):
-                ls = os.listdir(path)
+                ls = os.listdir(realpath)
                 if self.randomize:
                     random.shuffle(ls)
                 for sp in ls:
@@ -178,7 +178,7 @@ class EpubGrep(object):
             elif stat.S_ISREG(mode):
                 if st.st_size > self.max_size:
                     return
-                with open(path, mode='rb') as f:
+                with open(realpath, mode='rb') as f:
                     c = f.read()
                 if c.startswith(b'PK\x03\x04'):
                     content = self.read_pkzip(c)
@@ -189,18 +189,18 @@ class EpubGrep(object):
                 return
         except Exception as e:
             if self.colorize:
-                print("\033[1;31mFailed to read %s: %s\033[0;0m" % (path, e))
+                print("\033[1;31mFailed to read %s: %s\033[0;0m" % (path.decode('utf-8', 'backslashreplace'), e))
             else:
-                print("Failed to read %s: %s" % (path, e))
+                print("Failed to read %s: %s" % (path.decode('utf-8', 'backslashreplace'), e))
 
     def searchin(self, path):
         if type(path) is str:
-            path = bytes(path, 'utf-8')
+            path = path.encode('utf-8')
         self._searchdir(path)
         self.status = 'finished'
 
 
-def filesize(size_str):
+def argument_filesize(size_str):
     m = re.match('(\d+)([kKmMgG]?)', size_str)
     if not m:
         raise ArgumentError("'%s' is not a valid size string!" % (size_str))
@@ -216,6 +216,20 @@ def filesize(size_str):
     return size
 
 
+def argument_min_matches(min_str):
+    min = int(min_str)
+    if min <= 0:
+        raise ArgumentError("min-matches must be greater than zero!")
+    return min
+
+
+def argument_ge_zero(n):
+    n = int(n)
+    if n < 0:
+        raise ArgumentError("must be greater or equal to zero!")
+    return n
+
+
 if __name__ == "__main__":
 
     from signal import signal, SIGQUIT
@@ -223,22 +237,22 @@ if __name__ == "__main__":
     from time import time
     from shutil import get_terminal_size
 
-    parser = ArgumentParser(description='Grep for regex in epub files')
-    parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-Insensitive matching')
-    parser.add_argument('--lag', action='store', type=int, default=80, help='preview lag after matches for use with -p. Default 80')
-    parser.add_argument('--lead', action='store', type=int, default=80, help='preview lead before matches for use with -p. Default 80')
-    parser.add_argument('-n', '--min-matches', action='store', type=int, default=1, help='Minimum number of matches per file')
+    parser = ArgumentParser(description='Search for a regular expression in EPUB files', epilog='Shows status information on SIGQUIT (Ctrl+\)')
+    parser.add_argument('-i', '--ignore-case', action='store_true', help='case-insensitive matching')
+    parser.add_argument('--lag', action='store', type=argument_ge_zero, default=80, help='preview lag after matches for use with -p. Default 80')
+    parser.add_argument('--lead', action='store', type=argument_ge_zero, default=80, help='preview lead before matches for use with -p. Default 80')
+    parser.add_argument('-n', '--min-matches', action='store', type=argument_min_matches, default=1, help='minimum number of matches per file')
     parser.add_argument('--nocolor', action='store_false', dest='color', help='don\'t colorize output')
-    parser.add_argument('-p', '--preview', action='store_true', help='Preview matches')
+    parser.add_argument('-p', '--preview', action='store_true', help='preview matches')
     parser.add_argument('-r', '--randomize', action='store_true', help='randomize search order')
     parser.add_argument('--seed', action='store', type=int, default=random.randint(0, 2**32), help='seed for -r')
-    parser.add_argument('--size-max', type=filesize, default='10M',
-                        help='Maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Show arguments before beginning to search')
-    parser.add_argument('-V', '--version', action='version', version='epubgrep 0.2.1')
+    parser.add_argument('--size-max', type=argument_filesize, default='10M',
+                        help='maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
+    parser.add_argument('-v', '--verbose', action='store_true', help='show arguments before beginning to search')
+    parser.add_argument('-V', '--version', action='version', version='epubgrep 0.2.2')
 
-    parser.add_argument('pattern')
-    parser.add_argument('file', nargs='+')
+    parser.add_argument('PATTERN', help='python regular expression to search for')
+    parser.add_argument('FILE', nargs='+', help='files or directories in which to search')
     args = parser.parse_args()
 
     if args.verbose:
@@ -256,7 +270,7 @@ if __name__ == "__main__":
 
     random.seed(args.seed)
 
-    grep = EpubGrep(args.pattern)
+    grep = EpubGrep(args.PATTERN)
     grep.setColorize(args.color)
     grep.setIgnoreCase(args.ignore_case)
     grep.setMaxSize(args.size_max)
@@ -280,7 +294,7 @@ if __name__ == "__main__":
     signal(SIGQUIT, printstatus)
 
     try:
-        for path in args.file:
+        for path in args.FILE:
             grep.searchin(path)
     except KeyboardInterrupt:
         printstatus(0, 0)
