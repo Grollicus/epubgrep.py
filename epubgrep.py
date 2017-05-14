@@ -5,6 +5,7 @@ import re
 import stat
 import zipfile
 import random
+import sys
 from textwrap import TextWrapper
 from io import BytesIO
 
@@ -60,7 +61,7 @@ class EpubGrep(object):
     def setRandomize(self, rand):
         self.randomize = rand
 
-    def read_pkzip(self, c):
+    def read_pkzip(self, path, c):
         try:
             b = BytesIO(c)
             with zipfile.ZipFile(b, compression=zipfile.ZIP_DEFLATED, mode='r') as z:
@@ -72,12 +73,12 @@ class EpubGrep(object):
             return content
         except Exception as e:
             if self.colorize:
-                print("Failed to open %s: %s" % (path, e))
+                print("\033[1;31mFailed to open %s: %s\033[0;0m" % (path, e), file=sys.stderr)
             else:
-                print("\033[1;31mFailed to open %s: %s\033[0;0m" % (path, e))
+                print("Failed to open %s: %s" % (path, e), file=sys.stderr)
             return False
 
-    def print_previews(self, matches):
+    def print_previews(self, matches, printed_something_already):
 
         # Parts format: (start, end, string, isContext)
         def _match_to_parts(m):
@@ -106,7 +107,7 @@ class EpubGrep(object):
             print(_wrap(block), "\033[0;0m" if self.colorize else '')
 
         if len(matches) < 1:
-            return
+            return False
 
         matches.sort(key=lambda m: m.start(0))
         parts = _match_to_parts(matches[0])
@@ -123,7 +124,6 @@ class EpubGrep(object):
 
         block = b''
         last_was_context = False
-        printed_something_already = False
         for p in parts:
             if not p[3]:  # this part is a match, not context
                 last_was_context = False
@@ -147,18 +147,21 @@ class EpubGrep(object):
         if printed_something_already:
             print("---")
         _print_block(block)
+        return True
 
-    def _searchcontent(self, path, content):
+    def _searchcontents(self, path, contents):
         n = 0
         matches = []
-        for c in content:
+        for c in contents:
             m = [match for match in self.pattern.finditer(c)]
             n = n + len(m)
-            matches = matches + m
+            matches.append(m)
         if n >= self.min_matches:
             print("%s: %d" % (path.decode('utf-8', 'backslashreplace'), n))
-            if self.preview:
-                self.print_previews(matches)
+            printed_something_already = False
+            for m in matches:
+                if self.print_previews(m, printed_something_already):
+                    printed_something_already = True
 
     def _searchdir(self, path):
         try:
@@ -181,17 +184,17 @@ class EpubGrep(object):
                 with open(realpath, mode='rb') as f:
                     c = f.read()
                 if c.startswith(b'PK\x03\x04'):
-                    content = self.read_pkzip(c)
+                    content = self.read_pkzip(path, c)
                     if content:
-                        self._searchcontent(path, content)
+                        self._searchcontents(path, content)
                         return
-                self._searchcontent(path, [c])
+                self._searchcontents(path, [c])
                 return
         except Exception as e:
             if self.colorize:
-                print("\033[1;31mFailed to read %s: %s\033[0;0m" % (path.decode('utf-8', 'backslashreplace'), e))
+                print("\033[1;31mFailed to read %s: %s\033[0;0m" % (path.decode('utf-8', 'backslashreplace'), e), file=sys.stderr)
             else:
-                print("Failed to read %s: %s" % (path.decode('utf-8', 'backslashreplace'), e))
+                print("Failed to read %s: %s" % (path.decode('utf-8', 'backslashreplace'), e), file=sys.stderr)
 
     def searchin(self, path):
         if type(path) is str:
