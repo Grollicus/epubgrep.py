@@ -11,7 +11,7 @@ from io import BytesIO
 
 
 class EpubGrep(object):
-    tag_pattern = re.compile(b'<[^>]+>')
+    tag_pattern = re.compile(b'^[^<>]*>|<[^>]+>|<[^>]*$')
 
     def __init__(self, pattern):
         self.already_visited = set([])
