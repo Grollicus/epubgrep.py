@@ -24,7 +24,7 @@ class EpubGrep(object):
         self.min_matches = 1
         self.max_previews = 20
         self.ignore_case = False
-        self.max_size = 10*1024*1024
+        self.max_size = 10 * 1024 * 1024
         self.status = 'not started'
         self.preview = False
         self.preview_lead = 80
@@ -33,13 +33,13 @@ class EpubGrep(object):
         self.colorize = False
         self.output_width = 80
 
-    def setColorize(self, color):
-        self.colorize = color
+    def setColorize(self, do_colorize):
+        self.colorize = do_colorize
 
-    def setIgnoreCase(self, ignore):
-        self.ignore_case = ignore
+    def setIgnoreCase(self, do_ignore_case):
+        self.ignore_case = do_ignore_case
         if type(self._pattern) is bytes:
-            self.pattern = re.compile(self._pattern, re.I if ignore else 0)
+            self.pattern = re.compile(self._pattern, re.I if do_ignore_case else 0)
 
     def setMaxPreviews(self, max):
         self.max_previews = max
@@ -53,8 +53,8 @@ class EpubGrep(object):
     def setOutputWidth(self, width):
         self.output_width = width
 
-    def setPreview(self, prev):
-        self.preview = prev
+    def setPreview(self, do_preview):
+        self.preview = do_preview
 
     def setPreviewLead(self, lead):
         self.preview_lead = lead
@@ -62,8 +62,8 @@ class EpubGrep(object):
     def setPreviewLag(self, lag):
         self.preview_lag = lag
 
-    def setRandomize(self, rand):
-        self.randomize = rand
+    def setRandomize(self, do_randomize):
+        self.randomize = do_randomize
 
     def read_pkzip(self, path, c):
         try:
@@ -87,7 +87,7 @@ class EpubGrep(object):
         # Parts format: (start, end, string, isContext)
         def _match_to_parts(m):
             return [
-                (max(m.start(0)-self.preview_lead, 0), m.start(0), m.string, True),
+                (max(m.start(0) - self.preview_lead, 0), m.start(0), m.string, True),
                 (m.start(0), m.end(0), m.string, False),
                 (m.end(0), m.end(0) + self.preview_lag, m.string, True)
             ]
@@ -96,11 +96,11 @@ class EpubGrep(object):
             offs = 0
             lines = []
             while offs <= len(block):
-                idx = block.find('\n', offs, offs+self.output_width-4)
+                idx = block.find('\n', offs, offs + self.output_width - 4)
                 if idx == -1:
-                    idx = offs+self.output_width-4
-                lines.append('    '+block[offs:idx])
-                offs = idx+1 if block[idx:idx+1] == '\n' else idx
+                    idx = offs + self.output_width - 4
+                lines.append('    ' + block[offs:idx])
+                offs = idx + 1 if block[idx:idx + 1] == '\n' else idx
             return '\n'.join(lines)
 
         def _print_block(block):
@@ -162,6 +162,10 @@ class EpubGrep(object):
             matches.append(m)
         if n >= self.min_matches:
             print("%s: %d" % (path.decode('utf-8', 'backslashreplace'), n))
+
+            if not self.preview:
+                return
+
             previews = self.max_previews
             printed_something_already = False
             for m in matches:
@@ -181,24 +185,26 @@ class EpubGrep(object):
             self.status = path
             st = os.stat(realpath)
             mode = st.st_mode
+
             if stat.S_ISDIR(mode):
                 ls = os.listdir(realpath)
                 if self.randomize:
                     random.shuffle(ls)
                 for sp in ls:
                     self._searchdir(os.path.join(path, sp))
+
             elif stat.S_ISREG(mode):
                 if st.st_size > self.max_size:
                     return
                 with open(realpath, mode='rb') as f:
                     c = f.read()
-                if c.startswith(b'PK\x03\x04'):
+                if c.startswith(b'PK\x03\x04'):  # file is a pkzip file
                     content = self.read_pkzip(path, c)
                     if content:
                         self._searchcontents(path, content)
-                        return
-                self._searchcontents(path, [c])
-                return
+                else:
+                    self._searchcontents(path, [c])
+
         except Exception as e:
             if self.colorize:
                 print("\033[1;31mFailed to read %s: %s\033[0;0m" % (path.decode('utf-8', 'backslashreplace'), e), file=sys.stderr)
@@ -219,8 +225,8 @@ def argument_filesize(size_str):
     size = int(m.group(1))
     dimensions = {
         'k': 1024,
-        'm': 1024*1024,
-        'g': 1024*1024*1024,
+        'm': 1024 * 1024,
+        'g': 1024 * 1024 * 1024,
     }
     dimension = m.group(2).lower()
     if dimension in dimensions:
@@ -250,22 +256,22 @@ if __name__ == "__main__":
     from shutil import get_terminal_size
 
     parser = ArgumentParser(description='Search for a regular expression in EPUB files', epilog='Shows status information on SIGQUIT (Ctrl+\)')
-    parser.add_argument('-i', '--ignore-case', action='store_true', help='case-insensitive matching')
-    parser.add_argument('--lag', action='store', type=argument_ge_zero, default=80, help='preview lag after matches for use with -p. Default 80')
-    parser.add_argument('--lead', action='store', type=argument_ge_zero, default=80, help='preview lead before matches for use with -p. Default 80')
-    parser.add_argument('-n', '--min-matches', action='store', type=argument_gt_zero, default=1, help='minimum number of matches per file')
-    parser.add_argument('-m', '--max-previews', action='store', type=argument_gt_zero, default=20, help='maximum number of previews to show per file')
-    parser.add_argument('--nocolor', action='store_false', dest='color', help='don\'t colorize output')
-    parser.add_argument('-p', '--preview', action='store_true', help='preview matches')
-    parser.add_argument('-r', '--randomize', action='store_true', help='randomize search order')
-    parser.add_argument('--seed', action='store', type=int, default=random.randint(0, 2**32), help='seed for -r')
+    parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-insensitive matching')
+    parser.add_argument('--lag', action='store', type=argument_ge_zero, default=80, help='Preview lag after matches for use with -p. Default 80')
+    parser.add_argument('--lead', action='store', type=argument_ge_zero, default=80, help='Preview lead before matches for use with -p. Default 80')
+    parser.add_argument('-n', '--min-matches', action='store', type=argument_gt_zero, default=1, help='Minimum number of matches per file. Default 1')
+    parser.add_argument('-m', '--max-previews', action='store', type=argument_gt_zero, default=20, help='Maximum number of previews to show per file. Default 20')
+    parser.add_argument('--nocolor', action='store_false', dest='color', help='Don\'t colorize output')
+    parser.add_argument('-p', '--preview', action='store_true', help='Preview matches')
+    parser.add_argument('-r', '--randomize', action='store_true', help='Randomize search order')
+    parser.add_argument('--seed', action='store', type=int, default=random.randint(0, 2**32), help='Seed for -r (to repeat a search order in combination with -v)')
     parser.add_argument('--size-max', type=argument_filesize, default='10M',
-                        help='maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
-    parser.add_argument('-v', '--verbose', action='store_true', help='show arguments before beginning to search')
-    parser.add_argument('-V', '--version', action='version', version='epubgrep 0.2.2')
+                        help='Maximum size for a file (compressed and uncompressed) to be considered. Supports size suffixes K,M,G. Default 10M')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Show arguments before beginning to search')
+    parser.add_argument('-V', '--version', action='version', version='epubgrep 0.2.3')
 
-    parser.add_argument('PATTERN', help='python regular expression to search for')
-    parser.add_argument('FILE', nargs='+', help='files or directories in which to search')
+    parser.add_argument('PATTERN', help='Python Regular Expression to search for')
+    parser.add_argument('FILE', nargs='+', help='Files or directories in which to search. Will recurse into directories.')
     args = parser.parse_args()
 
     if args.verbose:
@@ -298,9 +304,9 @@ if __name__ == "__main__":
     started = time()
 
     def printstatus(signum, frame):
-        time_spent = time()-started
+        time_spent = time() - started
         n = len(grep.already_visited)
-        nps = n/time_spent
+        nps = n / time_spent
         if args.color:
             print("\033[0;32mCurrent Status: %d files visited (%.2f / s), currently at %s\033[0;0m" % (n, nps, repr(grep.status)))
         else:

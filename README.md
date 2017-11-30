@@ -38,13 +38,13 @@ A simple search tool to search epub files
 
 Examples
 =============
-Search for all epubs mentioning openssl
+Search for all epubs mentioning openssl (ignoring case)
 
 	$ epubgrep.py -i openssl .
 
 Search for all epubs mentioning openssl at least 3 times
 
-	$ epubgrep.py -i -n 3 openssl .
+	$ epubgrep.py -n 3 "[oO]pen[sS]{2}[lL]" .
 
 Search for all epubs mentioning openssl at least 3 times and show up to 20 previews
 
