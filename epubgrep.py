@@ -104,9 +104,13 @@ class EpubGrep(object):
             return '\n'.join(lines)
 
         def _print_block(block):
+            color_prefix = ''
+            if block.startswith(b'\033['):
+                color_prefix = block[0:block.index(b'm')+1]
             block = EpubGrep.tag_pattern.sub(b'', block).strip()
             if len(block) == 0:
                 return
+            block = color_prefix + block
             block = block.decode('utf-8', 'backslashreplace')
             print(_wrap(block), "\033[0;0m" if self.colorize else '')
 
