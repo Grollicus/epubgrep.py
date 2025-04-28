@@ -6,7 +6,6 @@ import stat
 import zipfile
 import random
 import sys
-from textwrap import TextWrapper
 from io import BytesIO
 
 
@@ -223,7 +222,7 @@ class EpubGrep(object):
 
 
 def argument_filesize(size_str):
-    m = re.match('(\d+)([kKmMgG]?)', size_str)
+    m = re.match('(\\d+)([kKmMgG]?)', size_str)
     if not m:
         raise ArgumentError("'%s' is not a valid size string!" % (size_str))
     size = int(m.group(1))
@@ -259,7 +258,7 @@ if __name__ == "__main__":
     from time import time
     from shutil import get_terminal_size
 
-    parser = ArgumentParser(description='Search for a regular expression in EPUB files', epilog='Shows status information on SIGQUIT (Ctrl+\)')
+    parser = ArgumentParser(description='Search for a regular expression in EPUB files', epilog="Shows status information on SIGQUIT (Ctrl+\\)")
     parser.add_argument('-i', '--ignore-case', action='store_true', help='Case-insensitive matching')
     parser.add_argument('--lag', action='store', type=argument_ge_zero, default=80, help='Preview lag after matches for use with -p. Default 80')
     parser.add_argument('--lead', action='store', type=argument_ge_zero, default=80, help='Preview lead before matches for use with -p. Default 80')
